@@ -18,7 +18,7 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           script: |
-            cd /home/newapp7
+            cd /home/newapp
             git pull origin main
             npm install
             pm2 restart index.js

@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบตารางสอนอัตโนมัติ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- GLOBAL RESET & CONFIGURATION --- */
+        body {
+            background-color: white; /* พื้นหลังหน้าจอ */
+            padding: 1cm; 
+            min-width: 1200px;
+            font-family: 'Sarabun', sans-serif;
+        }
+
+        /* --- ส่วนที่ปรับปรุง --- */
+
+/* 1. ปรับ Header ให้ขยายตามเนื้อหา ไม่ล็อคความสูง 160px แล้ว */
+.header-section {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px; /* เพิ่มระยะห่างก่อนเริ่มตารางเรียน */
+    min-height: 160px;   /* กำหนดขั้นต่ำไว้แทน */
+    height: auto;        /* ปล่อยให้ยืดตามเนื้อหา */
+    border: none;
+}
+
+/* 2. ดันตารางเรียนลงมา เพื่อไม่ให้ซ้อนทับ */
+.table-schedule {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem; 
+    margin-top: 20px;    /* เพิ่ม Gap ด้านบนตารางเรียน */
+    table-layout: fixed;
+    clear: both;         /* ป้องกันการลอยมาทับ */
+}
+
+/* 3. จัดการ Container ให้รองรับการขยายตัว */
+.print-page-container {
+    width: 100%;
+    min-height: 100vh;
+    padding: 1cm;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    /* justify-content: space-between; <-- เอาออกเพื่อให้ไหลตามลำดับ */
+}
+    
+
+        /* 1. กล่องข้อมูลโรงเรียน (ฝั่งซ้าย) */
+        .info-box {
+            width: 260px;
+            border: 2px solid black; /* กรอบแยก */
+            padding: 5px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background-color: white;
+        }
+
+        .logo-container {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 5px;
+        }
+        .logo-container img { width: 100%; height: 100%; object-fit: contain; }
+
+        .info-text { font-size: 0.9rem; font-weight: bold; margin-bottom: 0; line-height: 1.2; }
+        .info-sub { 
+            font-size: 0.8rem; 
+            color: #000; 
+            margin-top: 5px; 
+            text-align: left; 
+            width: 100%;
+            white-space: normal; 
+            line-height: 1.2;
+        }
+
+        /* 2. ตารางสรุปรายวิชา (ฝั่งขวา) */
+        .summary-container {
+            flex-grow: 1;
+            display: flex;
+            border: 2px solid black; /* กรอบแยก */
+            background-color: white;
+        }
+
+        .summary-half {
+            width: 50%;
+            border-right: 1px solid black;
+            display: flex;
+            flex-direction: column;
+        }
+        .summary-half:last-child { border-right: none; }
+
+        .sub-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem; 
+            table-layout: fixed;
+            height: 100%;
+        }
+
+        .sub-table th, .sub-table td {
+            border: 1px solid black;
+            padding: 2px 4px;
+            text-align: center;
+            vertical-align: middle;
+            white-space: normal; 
+            word-wrap: break-word;
+            overflow: visible; 
+        }
+        
+        /* ปรับแต่งเส้นขอบตารางย่อยให้สวยงามเมื่ออยู่ในกรอบใหญ่ */
+        .sub-table th { border-top: none; }
+        .sub-table tr:last-child td { border-bottom: none; }
+        .sub-table tr td:first-child, .sub-table tr th:first-child { border-left: none; }
+        .sub-table tr td:last-child, .sub-table tr th:last-child { border-right: none; }
+
+        .sub-table th { background-color: #f0f0f0; height: 20px; font-weight: bold; }
+        .text-left { text-align: left !important; padding-left: 4px !important; }
+        .text-right { text-align: right !important; padding-right: 4px !important; }
+        .footer-row { background-color: #e9ecef; font-weight: bold; }
+
+        /* --- TIMETABLE GRID (ตารางเรียน) --- */
+        .table-schedule {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem; 
+            margin-top: 0; 
+            table-layout: fixed; /* ล็อคความกว้างคอลัมน์ให้เท่ากัน */
+        }
+
+        .table-schedule th, 
+        .table-schedule td {
+            border: 1px solid black !important;
+            text-align: center;
+            vertical-align: middle;
+            padding: 0;
+            overflow: visible; /* ห้ามซ่อน ให้ยืดตามเนื้อหา */
+            height: auto; 
+        }
+
+        .table-schedule th {
+            background-color: #f0f0f0;
+            height: 40px; 
+            font-size: 0.75rem;
+            white-space: pre-line; 
+            line-height: 1.1;
+            font-weight: bold;
+        }
+
+        .cell-period {
+            min-height: 60px; /* ความสูงขั้นต่ำ */
+            height: auto; 
+            width: 8.33%; /* 12 คอลัมน์ (รวมวัน/เวลาเป็น 1 คอลัมน์ + 11 คาบ) */
+            position: relative;
+            vertical-align: top;
+        }
+
+        /* --- CLASS BLOCK (กล่องวิชาในตาราง) --- */
+        .class-block {
+            min-height: 60px; 
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: white;
+            padding: 4px;
+            
+            white-space: normal; 
+            word-wrap: break-word; 
+            word-break: break-word;
+            overflow: visible; 
+        }
+
+        .class-block.multi-period { background-color: #d1ecf1; }
+        .lunch-block { 
+            background-color: #fff3cd; 
+            font-weight: bold; 
+            color: #856404; 
+            font-size: 0.8rem; 
+            height: 100%;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* writing-mode: vertical-rl; หรือหมุนก็ได้ถ้าต้องการประหยัดที่ */
+        }
+
+        .subject-code { 
+            font-weight: bold; 
+            font-size: 0.75rem; 
+            margin-bottom: 2px; 
+            width: 100%; 
+            line-height: 1.2; 
+        }
+        .subject-name-text { 
+            font-size: 0.75rem; 
+            line-height: 1.2; 
+            margin-bottom: 2px; 
+            width: 100%; 
+            font-weight: 600; 
+            overflow: visible; 
+            white-space: normal;
+        }
+        .detail-text { 
+            font-size: 0.7rem; 
+            color: #333; 
+            line-height: 1.2; 
+            width: 100%; 
+            white-space: normal; 
+            overflow: visible;
+        }
+
+        /* --- SIGNATURE SECTION (ส่วนลายเซ็น) --- */
+        .signature-section {
+            display: none; /* ซ่อนในหน้าจอปกติ */
+        }
+
+        /* --- CONTROL PANEL (เมนูจัดการ) --- */
+        .control-panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+        }
+
+        /* --- PRINT STYLES (ตั้งค่าการพิมพ์) --- */
+        @media print {
+            body { 
+                padding: 0; 
+                margin: 0;
+                width: 297mm; /* A4 Landscape */
+                height: 210mm;
+                background-color: white;
+            }
+            .control-panel { display: none !important; }
+            .no-print { display: none !important; }
+            
+            .page-break { 
+                page-break-after: always; 
+                display: block; 
+                clear: both;
+            }
+            
+            /* Container สำหรับ 1 หน้า A4 */
+            .print-page-container {
+                width: 100%;
+                min-height: 100vh; /* ความสูงเต็มหน้ากระดาษ */
+                padding: 1cm; /* ขอบกระดาษ */
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between; /* กระจายเนื้อหา บน-กลาง-ล่าง */
+                page-break-inside: avoid;
+                page-break-after: always;
+            }
+
+            /* Signature แสดงเฉพาะตอนพิมพ์ */
+            .signature-section {
+                display: flex !important;
+                justify-content: space-between;
+                margin-top: 15px;
+                width: 100%;
+                font-size: 10px;
+                flex-shrink: 0; /* ห้ามหด */
+            }
+            .sig-block { text-align: center; width: 22%; }
+            .sig-line {
+                margin-bottom: 8px;
+                border-bottom: 1px dotted #999;
+                width: 80%;
+                margin-left: auto;
+                margin-right: auto;
+                height: 15px;
+            }
+            .sig-name { margin-bottom: 2px; }
+            .sig-role { font-weight: bold; font-size: 11px; }
+
+            @page { 
+                size: A4 landscape; 
+                margin: 0; /* ตัด Margin Browser */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="control-panel no-print">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">⚙️ จัดการตารางสอน</h5>
+            <div>
+                User: <strong><%= user.username %></strong>
+                <a href="/logout" class="btn btn-sm btn-outline-danger ms-2">Logout</a>
+            </div>
+        </div>
+        <div class="row g-2">
+            <div class="col-md-3">
+                <select id="viewType" class="form-select">
+                    <option value="group">มุมมอง: กลุ่มเรียน</option>
+                    <option value="teacher">มุมมอง: ครูผู้สอน</option>
+                    <option value="room">มุมมอง: ห้องเรียน</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <select id="viewItem" class="form-select">
+                    <option value="">-- เลือกรายการ --</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" onclick="renderTimetable()">แสดงผล</button>
+            </div>
+            
+            <div class="col-md-3 d-flex gap-1">
+                <div class="btn-group w-100">
+                    <button type="button" class="btn btn-danger dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        🖨️ พิมพ์ / PDF
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="window.print()">พิมพ์หน้านี้ (Current Page)</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="printBatch('group')">พิมพ์กลุ่มเรียนทั้งหมด (All Groups)</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="printBatch('teacher')">พิมพ์ครูผู้สอนทั้งหมด (All Teachers)</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="printBatch('room')">พิมพ์ห้องเรียนทั้งหมด (All Rooms)</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-2 mt-2 justify-content-end">
+            <div class="col-md-2">
+                <button class="btn btn-success w-100" onclick="exportToCSV()">📄 Export CSV</button>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-success w-100" onclick="exportToExcel()">📊 Export Excel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scheduleContainer" style="display:none;"></div>
+    <div id="batchPrintContainer" style="display:none;"></div>
+
+    <script>
+        const scheduleData = <%- JSON.stringify(schedule) %>;
+        const masterData = {
+            groups: <%- JSON.stringify(groups) %>,
+            teachers: <%- JSON.stringify(teachers) %>,
+            rooms: <%- JSON.stringify(rooms) %>,
+            subjects: <%- JSON.stringify(subjects) %>
+        };
+
+        const viewTypeSelect = document.getElementById('viewType');
+        const viewItemSelect = document.getElementById('viewItem');
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+        const dayNames = { 'Mon':'จันทร์', 'Tue':'อังคาร', 'Wed':'พุธ', 'Thu':'พฤหัส', 'Fri':'ศุกร์' };
+        
+        const timeSlots = [
+            "08.00-09.00", "09.00-10.00", "10.00-11.00", "11.00-12.00",
+            "12.00-13.00", 
+            "13.00-14.00", "14.00-15.00", "15.00-16.00", "16.00-17.00",
+            "17.00-18.00", "18.00-19.00"
+        ];
+
+        // --- Helper Function ---
+        function getName(type, id) {
+            if (type === 'teacher') return (masterData.teachers.find(x => x.teacher_id === id) || {}).teacher_name || id;
+            if (type === 'room') return (masterData.rooms.find(x => x.room_id === id) || {}).room_name || id;
+            if (type === 'group') return (masterData.groups.find(x => x.group_id === id) || {}).group_name || id;
+            if (type === 'subject') return (masterData.subjects.find(x => x.subject_id === id) || {}).subject_name || id;
+            return id;
+        }
+
+        viewTypeSelect.addEventListener('change', updateItemDropdown);
+        function updateItemDropdown() {
+            const type = viewTypeSelect.value;
+            viewItemSelect.innerHTML = '<option value="">-- เลือกรายการ --</option>';
+            let items = [];
+            if (type === 'group') items = masterData.groups.map(g => ({ id: g.group_id, name: `${g.group_id} - ${g.group_name}` }));
+            else if (type === 'teacher') items = masterData.teachers.map(t => ({ id: t.teacher_id, name: t.teacher_name }));
+            else if (type === 'room') items = masterData.rooms.map(r => ({ id: r.room_id, name: r.room_name }));
+
+            items.sort((a, b) => a.name.localeCompare(b.name));
+            items.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.name;
+                viewItemSelect.appendChild(opt);
+            });
+        }
+
+        function generatePageHTML(type, id) {
+            const mySchedule = scheduleData.filter(s => 
+                (type === 'group' && s.group_id === id) ||
+                (type === 'teacher' && s.teacher_id === id) ||
+                (type === 'room' && s.room_id === id)
+            );
+
+            // Info Data
+            let label1, val1, label2, val2;
+            if (type === 'group') {
+                const g = masterData.groups.find(x => x.group_id === id);
+                label1 = 'กลุ่มเรียน:'; val1 = g ? g.group_name : id;
+                label2 = 'ครูที่ปรึกษา:'; val2 = g ? g.advisor : '-';
+            } else if (type === 'teacher') {
+                const t = masterData.teachers.find(x => x.teacher_id === id);
+                label1 = 'ชื่อครู:'; val1 = t ? t.teacher_name : id;
+                label2 = 'ตำแหน่ง:'; val2 = t ? t.role : '-';
+            } else {
+                const r = masterData.rooms.find(x => x.room_id === id);
+                label1 = 'ห้องเรียน:'; val1 = r ? r.room_name : id;
+                label2 = 'ประเภท:'; val2 = r ? r.room_type : '-';
+            }
+
+            // Summary Data
+            const uniqueSubjIds = [...new Set(mySchedule.map(s => s.subject_id))];
+            let summaryList = uniqueSubjIds.map((sid, index) => {
+                const subj = masterData.subjects.find(s => s.subject_id === sid) || {};
+                const hours = mySchedule.filter(s => s.subject_id === sid).length;
+                return { seq: index + 1, code: sid, name: subj.subject_name || '-', t: parseInt(subj.theory||0), p: parseInt(subj.practice||0), c: parseInt(subj.credit||0), h: hours };
+            });
+            
+            let grandTotal = {t:0, p:0, c:0, h:0};
+            summaryList.forEach(i => { grandTotal.t+=i.t; grandTotal.p+=i.p; grandTotal.c+=i.c; grandTotal.h+=i.h; });
+
+            const half = Math.ceil(summaryList.length / 2);
+            const list1 = summaryList.slice(0, half);
+            const list2 = summaryList.slice(half);
+            const maxRows = Math.max(list1.length, list2.length, 6);
+
+            const genRows = (list) => {
+                let html = '';
+                for(let i=0; i<maxRows; i++) {
+                    const item = list[i];
+                    if(item) html += `<tr><td>${item.seq}</td><td>${item.code}</td><td class="text-left">${item.name}</td><td>${item.t}</td><td>${item.p}</td><td>${item.c}</td><td>${item.h}</td></tr>`;
+                    else html += `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                }
+                return html;
+            };
+
+            const genSubtotal = (list) => {
+                let s = {t:0, p:0, c:0, h:0};
+                list.forEach(i => { s.t+=i.t; s.p+=i.p; s.c+=i.c; s.h+=i.h; });
+                return `<tr class="footer-row"><td colspan="3" class="text-right">รวมย่อย</td><td>${s.t}</td><td>${s.p}</td><td>${s.c}</td><td>${s.h}</td></tr>`;
+            };
+
+            // Table Header with Time
+            let headerHtml = `<tr><th style="width:8%">วัน / เวลา</th>`;
+            for(let i=1; i<=11; i++) {
+                const timeStr = timeSlots[i-1];
+                if(i === 5) {
+                    headerHtml += `<th style="width:3%; font-size:0.6rem;">${i}<br>${timeStr}</th>`; 
+                } else {
+                    headerHtml += `<th>${i}<br>${timeStr}</th>`;
+                }
+            }
+            headerHtml += `</tr>`;
+
+            // Grid Rows
+            let gridHtml = '';
+            days.forEach(day => {
+                gridHtml += `<tr><td style="font-weight:bold">${dayNames[day]}</td>`;
+                for (let period = 1; period <= 11; period++) {
+                    if (period === 5) {
+                        gridHtml += `<td class="cell-period"><div class="lunch-block">พัก</div></td>`;
+                        continue;
+                    }
+                    const cls = mySchedule.find(s => s.day === day && parseInt(s.period) === period);
+                    if (cls) {
+                        let duration = 1;
+                        for (let k = period + 1; k <= 11; k++) {
+                            if (k === 5) break;
+                            const next = mySchedule.find(s => s.day === day && parseInt(s.period) === k);
+                            if (next && next.subject_id === cls.subject_id) duration++; else break;
+                        }
+                        
+                        const subjName = getName('subject', cls.subject_id);
+                        let d1 = '', d2 = '';
+                        if(type==='group') { d1=getName('teacher', cls.teacher_id); d2=getName('room', cls.room_id); }
+                        else if(type==='teacher') { d1=getName('group', cls.group_id); d2=getName('room', cls.room_id); }
+                        else { d1=getName('teacher', cls.teacher_id); d2=getName('group', cls.group_id); }
+
+                        const color = duration > 1 ? 'multi-period' : '';
+                        gridHtml += `<td colspan="${duration}" class="cell-period">
+                            <div class="class-block ${color}">
+                                <div class="subject-code">${cls.subject_id}</div>
+                                <div class="subject-name-text">${subjName}</div>
+                                <div class="detail-text">${d1}</div>
+                                <div class="detail-text">${d2}</div>
+                            </div>
+                        </td>`;
+                        period += (duration - 1);
+                    } else {
+                        gridHtml += `<td class="cell-period"></td>`;
+                    }
+                }
+                gridHtml += `</tr>`;
+            });
+
+            // Return Full Structure
+            return `
+            <div class="print-page-container">
+                <div style="flex-grow: 1;">
+                    <div class="header-section">
+                        <div class="info-box">
+                            <div class="logo-container"><img src="/img/2.png" onerror="this.style.display='none'"></div>
+                            <div class="info-text mt-1">ภาคเรียนที่ 2/2568</div>
+                            <div class="info-text">วิทยาลัยเทคนิคพังงา</div>
+                            <hr style="width: 90%; margin: 5px 0; border-top: 2px solid black;">
+                            <div class="info-sub"><b>${label1}</b> ${val1}</div>
+                            <div class="info-sub"><b>${label2}</b> ${val2}</div>
+                        </div>
+                        <div class="summary-container">
+                            <div class="summary-half">
+                                <table class="sub-table">
+                                    <thead><tr><th style="width:8%">ที่</th><th style="width:20%">รหัส</th><th>ชื่อวิชา</th><th style="width:8%">ท</th><th style="width:8%">ป</th><th style="width:8%">น</th><th style="width:8%">ช</th></tr></thead>
+                                    <tbody>${genRows(list1)}</tbody>
+                                    <tfoot>${genSubtotal(list1)}<tr class="footer-row" style="background-color:white;border:none"><td colspan="7" style="border:none">&nbsp;</td></tr></tfoot>
+                                </table>
+                            </div>
+                            <div class="summary-half">
+                                <table class="sub-table">
+                                    <thead><tr><th style="width:8%">ที่</th><th style="width:20%">รหัส</th><th>ชื่อวิชา</th><th style="width:8%">ท</th><th style="width:8%">ป</th><th style="width:8%">น</th><th style="width:8%">ช</th></tr></thead>
+                                    <tbody>${genRows(list2)}</tbody>
+                                    <tfoot>
+                                        ${genSubtotal(list2)}
+                                        <tr class="footer-row" style="background-color: #dee2e6; border-top: 2px solid black;">
+                                            <td colspan="3" class="text-right">รวมทั้งสิ้น</td>
+                                            <td>${grandTotal.t}</td><td>${grandTotal.p}</td><td>${grandTotal.c}</td><td>${grandTotal.h}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <table class="table-schedule">
+                        <thead>
+                            ${headerHtml}
+                        </thead>
+                        <tbody>${gridHtml}</tbody>
+                    </table>
+                </div>
+
+                <div class="signature-section">
+                    <div class="sig-block">
+                        <div class="sig-line"></div>
+                        <div class="sig-name">(.........................................)</div>
+                        <div class="sig-role">หัวหน้าแผนกวิชา</div>
+                    </div>
+                    <div class="sig-block">
+                        <div class="sig-line"></div>
+                        <div class="sig-name">(.........................................)</div>
+                        <div class="sig-role">หัวหน้างานพัฒนาหลักสูตรฯ</div>
+                    </div>
+                    <div class="sig-block">
+                        <div class="sig-line"></div>
+                        <div class="sig-name">(.........................................)</div>
+                        <div class="sig-role">รองผู้อำนวยการฝ่ายวิชาการ</div>
+                    </div>
+                    <div class="sig-block">
+                        <div class="sig-line"></div>
+                        <div class="sig-name">(.........................................)</div>
+                        <div class="sig-role">ผู้อำนวยการ</div>
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+
+        function renderTimetable() {
+            const type = viewTypeSelect.value;
+            const id = viewItemSelect.value;
+            if(!id) return;
+
+            const container = document.getElementById('scheduleContainer');
+            container.innerHTML = generatePageHTML(type, id);
+            container.style.display = 'block';
+            document.getElementById('batchPrintContainer').innerHTML = ''; 
+            document.getElementById('batchPrintContainer').style.display = 'none';
+        }
+
+        function printBatch(type) {
+            let list = [];
+            if(type === 'group') list = masterData.groups;
+            else if(type === 'teacher') list = masterData.teachers;
+            else list = masterData.rooms;
+
+            if(!confirm(`ระบบจะสร้างไฟล์ PDF จำนวน ${list.length} หน้า อาจใช้เวลาสักครู่ ยืนยันหรือไม่?`)) return;
+
+            document.getElementById('scheduleContainer').style.display = 'none';
+            const batchContainer = document.getElementById('batchPrintContainer');
+            batchContainer.innerHTML = '';
+            batchContainer.style.display = 'block';
+
+            let fullHtml = '';
+            list.forEach(item => {
+                const id = (type==='group') ? item.group_id : (type==='teacher' ? item.teacher_id : item.room_id);
+                fullHtml += generatePageHTML(type, id);
+                fullHtml += `<div class="page-break"></div>`;
+            });
+
+            batchContainer.innerHTML = fullHtml;
+
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
+
+        function exportToCSV() {
+            const type = viewTypeSelect.value; const id = viewItemSelect.value;
+            let data = scheduleData;
+            if (id) data = scheduleData.filter(s => (type === 'group' && s.group_id === id) || (type === 'teacher' && s.teacher_id === id) || (type === 'room' && s.room_id === id));
+            let csv = "data:text/csv;charset=utf-8,\uFEFFgroup_id,day,period,subject_id,subject_name,teacher_id,room_id\n";
+            data.forEach(r => csv += `${r.group_id},${r.day},${r.period},${r.subject_id},${getName('subject', r.subject_id).replace(/,/g, '')},${r.teacher_id},${r.room_id}\n`);
+            const link = document.createElement("a"); link.href = encodeURI(csv); link.download = "timetable.csv"; link.click();
+        }
+
+        function exportToExcel() {
+            const c = document.getElementById('scheduleContainer');
+            if(c.style.display === 'none' || !c.innerHTML) return alert("แสดงผลตารางก่อนทำการ Export");
+
+            // สร้างส่วน CSS สำหรับ Excel เพื่อให้มีเส้นตารางและสี
+            const excelStyles = `
+                <style>
+                    table { border-collapse: collapse; width: 100%; font-family: 'Sarabun', sans-serif; }
+                    th, td { border: 0.5pt solid windowtext; text-align: center; vertical-align: middle; padding: 5px; }
+                    th { background-color: #f0f0f0; font-weight: bold; }
+                    .header-section { display: table; width: 100%; margin-bottom: 20px; }
+                    .info-box { display: table-cell; width: 260px; border: 1.5pt solid black; vertical-align: middle; padding: 10px; }
+                    .summary-container { display: table-cell; border: 1.5pt solid black; padding: 0; }
+                    .summary-half { display: table-cell; width: 50%; border-right: 0.5pt solid black; }
+                    .footer-row { background-color: #e9ecef; font-weight: bold; }
+                    .class-block { background-color: #ffffff; }
+                    .multi-period { background-color: #d1ecf1; }
+                    .lunch-block { background-color: #fff3cd; font-weight: bold; }
+                    .text-left { text-align: left; }
+                    .text-right { text-align: right; }
+                </style>
+            `;
+
+            const excelTemplate = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+                      xmlns:x="urn:schemas-microsoft-com:office:excel" 
+                      xmlns="http://www.w3.org/TR/REC-html40">
+                <head>
+                    <meta charset="UTF-8">
+                    ${excelStyles}
+                </head>
+                <body>
+                    ${c.innerHTML}
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob(['\ufeff', excelTemplate], {type: 'application/vnd.ms-excel'});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'timetable_excel.xls';
+            link.click();
+        }
+
+        updateItemDropdown();
+    </script>
+</body>
+</html>
